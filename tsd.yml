@@ -1,0 +1,63 @@
+- hosts: all
+  tasks: 
+  
+  - name: Install traffic shaping software
+    yum:
+      name: "{{ packages }}"
+    vars:
+      packages:
+      - iproute
+
+  - name: Enable IP forwarding
+    blockinfile:
+      path: /etc/sysctl.conf
+      block: |
+        net.ipv4.ip_forward = 1
+        net.ipv4.conf.default.send_redirects = 0
+        net.ipv4.conf.all.send_redirects = 0
+        net.ipv4.ip_no_pmtu_disc = 1
+      marker: "# {mark} ANSIBLE MANAGED BLOCK ENABLE_IP_FORWARD"
+
+  - name: reload sysctl
+    command: bash -c "sysctl -p /etc/sysctl.conf"
+
+  - name: Add logic for traffic shape tools
+    blockinfile:
+      path: /etc/rc.d/rc.local
+      block: |
+        # Clear out any existing tc policies
+        tc qdisc del dev eth1 root
+        tc qdisc del dev eth2 root
+        tc qdisc del dev eth3 root        
+
+        # Configure new traffic shaping policies on the NICs
+        #tc qdisc add dev eth3 root handle 1: netem delay 900ms
+        #tc qdisc add dev enp2s0 root tbf rate 8mbit burst 10mbit latency 50ms
+
+        # Set the download to 70Mbps and burstable to 80Mbps
+        #tc qdisc add dev enp5s0 root tbf rate 70mbit burst 80mbit latency 50ms
+
+      marker: "# {mark} ANSIBLE MANAGED BLOCK for Traffic Shaping Device"
+    register: rc_script
+
+  - name: Make rc.local file executable
+    file:
+      path: /etc/rc.d/rc.local
+      state: touch
+      mode: '0755'
+      owner: root
+      group: root
+
+  - name: Reboot immediately
+    shell: "sleep 5 && reboot"
+    async: 1
+    poll:  0
+    when:  rc_script is changed or ifcfg_definition is changed
+    
+  - name: Wait for the reboot to complete
+    wait_for_connection:
+      connect_timeout: 20
+      sleep: 1
+      delay: 10
+      timeout: 300
+    when: rc_script is changed or ifcfg_definition is changed

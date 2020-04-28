@@ -1,0 +1,25 @@
+- hosts: all
+  tasks:
+
+  - name: Create route config file
+    file:
+      path: /etc/sysconfig/network-scripts/route-eth1
+      state: touch
+      mode: '0644'
+      owner: root
+      group: root
+
+  - name: Add static routes
+    blockinfile:
+      path: /etc/sysconfig/network-scripts/route-eth1
+      block: |
+        {{ item.subnet }} via {{ item.gw }} dev eth1
+      marker: "# {mark} ANSIBLE MANAGED BLOCK {{ item.name }}"
+    loop:
+      - { name: server1-network, subnet: 192.168.31.0/24, gw: 192.168.33.254 }
+      - { name: server2-network, subnet: 192.168.32.0/24, gw: 192.168.33.254 }
+
+  # Restart network via Ansible module does not work...
+  - name: restart networking interfaces of eth1
+    command: bash -c "ifdown eth1 && ifup eth1"
+

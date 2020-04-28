@@ -1,0 +1,20 @@
+- hosts: all
+  tasks: 
+  
+  - name: Install utilities
+    yum:
+      name: "{{ packages }}"
+    vars:
+      packages:
+      - net-tools
+
+  - name: Add mappings to /etc/hosts
+    blockinfile:
+      path: /etc/hosts
+      block: |
+        {{ item.ip }} {{ item.name }}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK {{ item.name }}"
+    loop:
+      - { name: server1, ip: 192.168.31.10 }
+      - { name: server2, ip: 192.168.32.10 }
+      - { name: server3, ip: 192.168.33.10 }
